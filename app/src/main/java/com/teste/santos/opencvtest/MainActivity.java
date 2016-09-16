@@ -20,6 +20,7 @@ import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfInt;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
@@ -27,6 +28,7 @@ import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends Activity implements View.OnTouchListener, CameraBridgeViewBase.CvCameraViewListener2 {
@@ -40,7 +42,19 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
     private ColorBlobDetector mDetector;
     private Mat                  mSpectrum;
     private Size                 SPECTRUM_SIZE;
-    private Scalar               CONTOUR_COLOR;
+    private Scalar               CONTOUR_COLOR_1;
+    private Scalar               CONTOUR_COLOR_2;
+
+    private Mat imgGray;
+    private Mat imgBlur;
+    private Mat thresh1;
+    private Mat hierarchy;
+    private Mat drawing;
+    private MatOfInt currentHull;
+    private List<MatOfPoint> contours;
+
+    int THRESHOLD_VALUE = 70;//TODO: test with 0
+    private static final int  MAX_BINARY_VALUE = 255;
 
     private CameraBridgeViewBase mOpenCvCameraView;
 
@@ -62,9 +76,6 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
         }
     };
 
-    public void ColorBlobDetectionActivity() {
-        Log.i(TAG, "Instantiated new " + this.getClass());
-    }
 
     /** Called when the activity is first created. */
     @Override
@@ -107,89 +118,85 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
         if (mOpenCvCameraView != null)
             mOpenCvCameraView.disableView();
     }
-
+    @Override
     public void onCameraViewStarted(int width, int height) {
         mRgba = new Mat(height, width, CvType.CV_8UC4);
-        mDetector = new ColorBlobDetector();
-        mSpectrum = new Mat();
-        mBlobColorRgba = new Scalar(255);
-        mBlobColorHsv = new Scalar(255);
-        SPECTRUM_SIZE = new Size(200, 64);
-        CONTOUR_COLOR = new Scalar(255,0,0,255);
-    }
 
+        imgGray = new Mat(height, width, CvType.CV_8UC1);
+        imgBlur = new Mat(height, width, CvType.CV_8UC1);
+        thresh1 = new Mat(height, width, CvType.CV_8UC1);
+        hierarchy = new Mat(height, width, CvType.CV_8UC1);
+        drawing = new Mat(height, width, CvType.CV_8UC4);
+
+        CONTOUR_COLOR_1 = new Scalar(0,255,0);
+        CONTOUR_COLOR_2 = new Scalar(0,0,255);
+    }
+    @Override
     public void onCameraViewStopped() {
         mRgba.release();
     }
 
+    @Override
+    public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
+        mRgba = inputFrame.rgba();
+        //Take a Gray Frame
+        Imgproc.cvtColor(mRgba, imgGray, Imgproc.COLOR_RGB2GRAY);
+        //Take a Blur Frame
+        Imgproc.GaussianBlur(imgGray, imgBlur,(new Size(5,5)), 0);
+        //Take a Binary Frame
+        Imgproc.threshold(imgBlur, thresh1, THRESHOLD_VALUE, MAX_BINARY_VALUE, Imgproc.THRESH_BINARY_INV+Imgproc.THRESH_OTSU);
+        //Return all contour and the hierarchy (this final item its not necessary)
+        Imgproc.findContours(thresh1, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
+
+        //Extract the largest Contours
+        double maxArea = 0;
+        int currentPoint = 0;
+        MatOfPoint currentMatPoint;
+        for (int i = 0; i < contours.size(); i++){
+            currentMatPoint = contours.get(i);
+            double area = Imgproc.contourArea(currentMatPoint);
+            if(maxArea < area){
+                maxArea = area;
+                currentPoint = i;
+            }
+        }
+        currentMatPoint = contours.get(currentPoint);
+        //Extract de convex Hull
+        Imgproc.convexHull(currentMatPoint, currentHull);
+        //Displaying largest contour and convex hull
+        //Creating a auxiliar list to Point
+        List<MatOfPoint> auxPointList =  new ArrayList<MatOfPoint>();
+        auxPointList.add(currentMatPoint);
+        //Creating a auxiliar list to Hull
+
+//        MatOfPoint mopOut = new MatOfPoint();
+//        mopOut.create((int)currentHull.size().height,1,CvType.CV_32SC2);
+//
+//        for(int i = 0; i < currentHull.size().height ; i++) {
+//            int index = (int)currentHull.get(i, 0)[0];
+//            double[] point = new double[] {
+//                    currentMatPoint.get(index, 0)[0], currentMatPoint.get(index, 0)[1]
+//            };
+//            mopOut.put(i, 0, point);
+//        }
+//        List<MatOfPoint> auxIntList =  new ArrayList<MatOfPoint>();
+//        auxIntList.add(mopOut);
+//
+//        Imgproc.drawContours(drawing,auxPointList, 0, CONTOUR_COLOR_1, 2);
+//        Imgproc.drawContours(drawing, auxIntList, 0, CONTOUR_COLOR_2, 2);
+
+        //Simple test
+        //TODO: MAKE A FOR WITH RANDOM COLOR TO EATH CONTOUR
+        Imgproc.drawContours(thresh1, contours, 0, CONTOUR_COLOR_2, 2);
+
+
+        return thresh1;
+    }
+
     public boolean onTouch(View v, MotionEvent event) {
-        int cols = mRgba.cols();
-        int rows = mRgba.rows();
-
-        int xOffset = (mOpenCvCameraView.getWidth() - cols) / 2;
-        int yOffset = (mOpenCvCameraView.getHeight() - rows) / 2;
-
-        int x = (int)event.getX() - xOffset;
-        int y = (int)event.getY() - yOffset;
-
-        Log.i(TAG, "Touch image coordinates: (" + x + ", " + y + ")");
-
-        if ((x < 0) || (y < 0) || (x > cols) || (y > rows)) return false;
-
-        Rect touchedRect = new Rect();
-
-        touchedRect.x = (x>4) ? x-4 : 0;
-        touchedRect.y = (y>4) ? y-4 : 0;
-
-        touchedRect.width = (x+4 < cols) ? x + 4 - touchedRect.x : cols - touchedRect.x;
-        touchedRect.height = (y+4 < rows) ? y + 4 - touchedRect.y : rows - touchedRect.y;
-
-        Mat touchedRegionRgba = mRgba.submat(touchedRect);
-
-        Mat touchedRegionHsv = new Mat();
-        Imgproc.cvtColor(touchedRegionRgba, touchedRegionHsv, Imgproc.COLOR_RGB2HSV_FULL);
-
-        // Calculate average color of touched region
-        mBlobColorHsv = Core.sumElems(touchedRegionHsv);
-        int pointCount = touchedRect.width*touchedRect.height;
-        for (int i = 0; i < mBlobColorHsv.val.length; i++)
-            mBlobColorHsv.val[i] /= pointCount;
-
-        mBlobColorRgba = converScalarHsv2Rgba(mBlobColorHsv);
-
-        Log.i(TAG, "Touched rgba color: (" + mBlobColorRgba.val[0] + ", " + mBlobColorRgba.val[1] +
-                ", " + mBlobColorRgba.val[2] + ", " + mBlobColorRgba.val[3] + ")");
-
-        mDetector.setHsvColor(mBlobColorHsv);
-
-        Imgproc.resize(mDetector.getSpectrum(), mSpectrum, SPECTRUM_SIZE);
-
-        mIsColorSelected = true;
-
-        touchedRegionRgba.release();
-        touchedRegionHsv.release();
-
         return false; // don't need subsequent touch events
     }
 
-    public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
-        mRgba = inputFrame.rgba();
-
-        if (mIsColorSelected) {
-            mDetector.process(mRgba);
-            List<MatOfPoint> contours = mDetector.getContours();
-            Log.e(TAG, "Contours count: " + contours.size());
-            Imgproc.drawContours(mRgba, contours, -1, CONTOUR_COLOR);
-
-            Mat colorLabel = mRgba.submat(4, 68, 4, 68);
-            colorLabel.setTo(mBlobColorRgba);
-
-            Mat spectrumLabel = mRgba.submat(4, 4 + mSpectrum.rows(), 70, 70 + mSpectrum.cols());
-            mSpectrum.copyTo(spectrumLabel);
-        }
-
-        return mRgba;
-    }
 
     private Scalar converScalarHsv2Rgba(Scalar hsvColor) {
         Mat pointMatRgba = new Mat();
