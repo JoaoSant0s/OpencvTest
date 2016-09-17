@@ -1,6 +1,7 @@
 package com.teste.santos.opencvtest;
 
 import android.app.Activity;
+import android.os.Debug;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -87,7 +88,7 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
 
         setContentView(R.layout.activity_main);
 
-        mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.java_camera_view);
+        mOpenCvCameraView = (JavaCameraView) findViewById(R.id.java_camera_view);
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
         mOpenCvCameraView.setCvCameraViewListener(this);
     }
@@ -127,18 +128,22 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
         thresh1 = new Mat(height, width, CvType.CV_8UC1);
         hierarchy = new Mat(height, width, CvType.CV_8UC1);
         drawing = new Mat(height, width, CvType.CV_8UC4);
-
+        contours = new ArrayList<>();
         CONTOUR_COLOR_1 = new Scalar(0,255,0);
         CONTOUR_COLOR_2 = new Scalar(0,0,255);
+        currentHull = new MatOfInt();
     }
     @Override
     public void onCameraViewStopped() {
+
         mRgba.release();
     }
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
         mRgba = inputFrame.rgba();
+
+        contours.clear();
         //Take a Gray Frame
         Imgproc.cvtColor(mRgba, imgGray, Imgproc.COLOR_RGB2GRAY);
         //Take a Blur Frame
@@ -147,7 +152,6 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
         Imgproc.threshold(imgBlur, thresh1, THRESHOLD_VALUE, MAX_BINARY_VALUE, Imgproc.THRESH_BINARY_INV+Imgproc.THRESH_OTSU);
         //Return all contour and the hierarchy (this final item its not necessary)
         Imgproc.findContours(thresh1, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
-
         //Extract the largest Contours
         double maxArea = 0;
         int currentPoint = 0;
@@ -160,6 +164,11 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
                 currentPoint = i;
             }
         }
+        //TODO: MAKE OTHER ALTERNATIVE (USE PURE BLACK BACKGROUND)
+        drawing = new Mat(drawing.height(), drawing.width(), CvType.CV_8UC3);
+
+        if(contours.isEmpty()) return drawing;
+
         currentMatPoint = contours.get(currentPoint);
         //Extract de convex Hull
         Imgproc.convexHull(currentMatPoint, currentHull);
@@ -169,28 +178,23 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
         auxPointList.add(currentMatPoint);
         //Creating a auxiliar list to Hull
 
-//        MatOfPoint mopOut = new MatOfPoint();
-//        mopOut.create((int)currentHull.size().height,1,CvType.CV_32SC2);
-//
-//        for(int i = 0; i < currentHull.size().height ; i++) {
-//            int index = (int)currentHull.get(i, 0)[0];
-//            double[] point = new double[] {
-//                    currentMatPoint.get(index, 0)[0], currentMatPoint.get(index, 0)[1]
-//            };
-//            mopOut.put(i, 0, point);
-//        }
-//        List<MatOfPoint> auxIntList =  new ArrayList<MatOfPoint>();
-//        auxIntList.add(mopOut);
-//
-//        Imgproc.drawContours(drawing,auxPointList, 0, CONTOUR_COLOR_1, 2);
-//        Imgproc.drawContours(drawing, auxIntList, 0, CONTOUR_COLOR_2, 2);
+        MatOfPoint mopOut = new MatOfPoint();
+        mopOut.create((int)currentHull.size().height,1,CvType.CV_32SC2);
 
-        //Simple test
-        //TODO: MAKE A FOR WITH RANDOM COLOR TO EATH CONTOUR
-        Imgproc.drawContours(thresh1, contours, 0, CONTOUR_COLOR_2, 2);
+        for(int i = 0; i < currentHull.size().height ; i++) {
+            int index = (int)currentHull.get(i, 0)[0];
+            double[] point = new double[] {
+                    currentMatPoint.get(index, 0)[0], currentMatPoint.get(index, 0)[1]
+            };
+            mopOut.put(i, 0, point);
+        }
+        List<MatOfPoint> auxIntList =  new ArrayList<MatOfPoint>();
+        auxIntList.add(mopOut);
 
+        Imgproc.drawContours(drawing, auxPointList, 0, CONTOUR_COLOR_1, 2);
+        Imgproc.drawContours(drawing, auxIntList, 0, CONTOUR_COLOR_2, 2);
 
-        return thresh1;
+        return drawing;
     }
 
     public boolean onTouch(View v, MotionEvent event) {
