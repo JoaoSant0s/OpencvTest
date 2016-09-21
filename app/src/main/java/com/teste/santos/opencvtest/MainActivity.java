@@ -1,8 +1,10 @@
 package com.teste.santos.opencvtest;
 
 import android.app.Activity;
+import android.graphics.Point;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Display;
 import android.view.MotionEvent;
 import android.view.SurfaceView;
 import android.view.View;
@@ -20,6 +22,7 @@ import org.opencv.core.MatOfInt;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
+import org.opencv.highgui.Highgui;
 import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
@@ -82,6 +85,8 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
         mOpenCvCameraView = (JavaCameraView) findViewById(R.id.java_camera_view);
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
         mOpenCvCameraView.setCvCameraViewListener(this);
+
+        Log.i(TAG, mOpenCvCameraView.getHeight() + " " +  mOpenCvCameraView.getWidth());
     }
 
     @Override
