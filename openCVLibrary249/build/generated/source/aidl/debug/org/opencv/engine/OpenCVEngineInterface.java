@@ -1,6 +1,6 @@
 /*
  * This file is auto-generated.  DO NOT MODIFY.
- * Original file: J:\\Development\\Android\\OpenCvTest\\openCVLibrary249\\src\\main\\aidl\\org\\opencv\\engine\\OpenCVEngineInterface.aidl
+ * Original file: J:\\ExternalDevelopment\\UFPE\\IntroducaoMultimidia\\OpenCvTest\\openCVLibrary249\\src\\main\\aidl\\org\\opencv\\engine\\OpenCVEngineInterface.aidl
  */
 package org.opencv.engine;
 /**

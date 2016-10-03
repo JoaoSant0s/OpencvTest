@@ -19,6 +19,7 @@ import org.opencv.android.OpenCVLoader;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfInt;
+import org.opencv.core.MatOfInt4;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
@@ -39,6 +40,7 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
 
     private Mat imgGray;
     private Mat imgBlur;
+    private Mat imgCanny;
     private Mat thresh1;
     private Mat hierarchy;
     private Mat drawing;
@@ -47,6 +49,9 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
 
     private int saveHeight;
     private int saveWidth;
+    private int thresholdNumber;
+    private int thresholdNumber1;
+    private MatOfInt4 convexityDefects;
 
     int THRESHOLD_VALUE = 70;//TODO: test with 0
     private static final int  MAX_BINARY_VALUE = 255;
@@ -127,6 +132,7 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
         CONTOUR_COLOR_GREEN = new Scalar(0,255,0);
         CONTOUR_COLOR_BLUE = new Scalar(0,0,255);
 
+
         contours = new ArrayList<>();
         this.saveHeight = height;
         this.saveWidth = width;
@@ -136,11 +142,14 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
         imgGray = new Mat(this.saveHeight, this.saveWidth, CvType.CV_8UC1);
         imgBlur = new Mat(this.saveHeight, this.saveWidth, CvType.CV_8UC1);
         thresh1 = new Mat(this.saveHeight, this.saveWidth, CvType.CV_8UC1);
+        imgCanny = new Mat(this.saveHeight, this.saveWidth, CvType.CV_8UC1);
         hierarchy = new Mat(this.saveHeight, this.saveWidth, CvType.CV_8UC1);
         drawing = new Mat(this.saveHeight, this.saveWidth, CvType.CV_8UC4);
+        convexityDefects = new MatOfInt4();
         currentHull = new MatOfInt();
         contours.clear();
     }
+
     @Override
     public void onCameraViewStopped() {
         mRgba.release();
@@ -157,8 +166,11 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
         Imgproc.GaussianBlur(imgGray, imgBlur,(new Size(5,5)), 0);
         //Take a Binary Frame
         Imgproc.threshold(imgBlur, thresh1, THRESHOLD_VALUE, MAX_BINARY_VALUE, Imgproc.THRESH_BINARY_INV+Imgproc.THRESH_OTSU);
+        //Canny( src_gray, canny_output, thresh, thresh*2, 3 );
+        Imgproc.Canny(thresh1, imgCanny, thresholdNumber, thresholdNumber1);
         //Return all contour and the hierarchy (this final item its not necessary)
-        Imgproc.findContours(thresh1, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.findContours(imgCanny, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
+
         //Extract the largest Contours
         double maxArea = 0;
         int currentPoint = 0;
@@ -172,7 +184,10 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
             }
         }
 
-        if(contours.isEmpty()) return drawing;
+        if(contours.isEmpty()){
+            Log.d(TAG, "isEmpty");
+            return drawing;
+        }
 
         currentMatPoint = contours.get(currentPoint);
         //Extract de convex Hull
@@ -196,7 +211,7 @@ public class MainActivity extends Activity implements View.OnTouchListener, Came
         List<MatOfPoint> auxIntList =  new ArrayList<MatOfPoint>();
         auxIntList.add(mopOut);
 
-        Imgproc.drawContours(drawing, auxPointList, 0, CONTOUR_COLOR_RED, 2);
+       // Imgproc.drawContours(drawing, auxPointList, 0, CONTOUR_COLOR_RED, 2);
         Imgproc.drawContours(drawing, auxIntList, 0, CONTOUR_COLOR_BLUE, 2);
 
         return drawing;
